@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>https://webauthn.guide/</title>
+
+</head>
+<body>
+<p id="app" v-html="message"></p>
+<script src="https://cdn.jsdelivr.net/npm/vue">
+<script src="cbor.js"></script>
+</body>
+<script>
+    var app = new Vue({
+        el: "#app",
+        data: {
+            message: '',
+            touchIDOptions: {
+                publicKey: {
+                    rp: { name: "chatandchat" }, // 网站信息
+                    user: {
+                        name: "coderwaves", // 用户名
+                        id:  Uint8Array.from("1234567ghb", c => c.charCodeAt(0)), // 用户id(ArrayBuffer)
+                        displayName:"coderwaves"
+                    },
+                    pubKeyCredParams: [
+                        { type: "public-key", alg: -7 },
+                        { type: "public-key", alg: -35},
+                        { type: "public-key", alg: -36 },
+                        { type: "public-key", alg: -257 },
+                        { type: "public-key", alg: -258},
+                        { type: "public-key", alg: -259 },
+                        { type: "public-key", alg: -37 },
+                        { type: "public-key", alg: -38},
+                        { type: "public-key", alg: -39 },
+                        { type: "public-key", alg: -8 }
+                    ],
+                    challenge: Uint8Array.from("certificatecertificate", c => c.charCodeAt(0)), // 凭证(ArrayBuffer)
+                    attestation: "direct",
+                    timeout: 60000,
+                    authenticatorSelection: {
+                        userVerification: "discouraged",
+                        authenticatorAttachment: "platform"
+                    },
+                }
+            },
+            touchIDLoginOptions: {
+                publicKey: {
+                    challenge: "", // 凭证(ArrayBuffer)
+                    userVerification:"discouraged",
+                    timeout: 60000,
+                    allowCredentials: [
+                        {
+                            type: "public-key",
+                            id: "", // 注册时的rawId(ArrayBuffer)
+                            transports: ["internal"] // 使用内置指纹
+                        }
+                    ]
+                }
+            },
+        },
+        methods: {
+            touchIDRegistered: async function() {
+                // 校验设备是否支持touchID
+                const hasTouchID = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+                if (hasTouchID && window.confirm("检测到您的设备支持指纹登录，是否启用?")) {
+                    // 调用指纹设备，创建指纹
+                    console.log("调用指纹设备，创建指纹")
+                    this.message+='调用指纹设备，创建指纹<br/><br/>'
+                    const publicKeyCredential = await navigator.credentials.create(this.touchIDOptions).then((res) => {
+                        console.log(res)
+                        this.message+=res+'<br/><br/>'
+                        const rawId = res.rawId;
+
+                        const response = res.response;
+                        // 获取客户端信息
+                        const clientDataJSON = res.response.clientDataJSON;
+                        console.log("访问接口 注册指纹")
+
+                        //解析注册返回的数据
+                        const utf8Decoder = new TextDecoder('utf-8');
+                        const decodedClientData = utf8Decoder.decode(res.response.clientDataJSON)
+                        const clientDataObj = JSON.parse(decodedClientData);
+                        console.log("clientDataObj")
+                        console.log(clientDataObj)
+
+                        this.message+='clientDataObj:'+clientDataObj+'<br/><br/>'
+
+                        const decodedAttestationObject = CBOR.decode(res.response.attestationObject);
+                        console.log("attestationObject")
+                        console.log(decodedAttestationObject);
+
+                        this.message+='attestationObject:'+decodedAttestationObject+'<br/><br/>'
+
+                        const {authData} = decodedAttestationObject;
+
+// get the length of the credential ID
+                        const dataView = new DataView(new ArrayBuffer(2));
+                        const idLenBytes = authData.slice(53, 55);
+                        idLenBytes.forEach(
+                            (value, index) => dataView.setUint8(
+                                index, value));
+                        const credentialIdLength = dataView.getUint16();
+
+// get the credential ID
+                        const credentialId = authData.slice(55, 55 + credentialIdLength);
+                        console.log("credentialId")
+                        console.log(credentialId)
+
+                        this.message+='credentialId:'+credentialId+'<br/><br/>'
+
+                        localStorage.setItem("credentialId",credentialId)
+// get the public key object
+                        const publicKeyBytes = authData.slice(55 + credentialIdLength);
+
+// publicKeyBytes 再次编码为 CBOR
+                        const publicKeyObject = CBOR.decode(publicKeyBytes.buffer);
+                        console.log("publicKeyObject")
+                        console.log(publicKeyObject)
+
+                        this.message+='publicKeyObject:'+publicKeyObject+'<br/><br/>'
+
+                        // 保存touchId用于指纹登录
+                        console.log("注册指纹成功!!!!!!")
+
+                        this.message+='注册指纹成功!!!!!!'+'<br/><br/>'
+
+                    });
+                }
+            },
+            touchIDLogin: async function() {
+
+                this.message+='开始登录:<br/><br/>';
+
+                // 校验设备是否支持touchID
+                const hasTouchID = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+                if (hasTouchID) {
+                    // 更新登录凭证
+                    this.touchIDLoginOptions.publicKey.challenge =Uint8Array.from("certificatecertificate",
+                        c => c.charCodeAt(0));
+
+                    let credentialId=localStorage.getItem("credentialId")
+                    console.log("credentialId:"+credentialId)
+
+                    this.message+='获取本地存储credentialId:'+credentialId+'<br/><br/>';
+
+                    this.touchIDLoginOptions.publicKey.allowCredentials[0].id =Uint8Array.from(credentialId, c => c.charCodeAt(0));
+                    // this.touchIDLoginOptions.publicKey.allowCredentials[0].id = this.base64ToArrayBuffer(touchId);
+                    // 开始校验指纹
+                    console.log("开始校验指纹")
+                    this.message+='开始校验指纹<br/><br/>';
+                    const assertion = await navigator.credentials.get(this.touchIDLoginOptions);
+
+                    this.message+='登录成功<br/><br/>';
+                    console.log("登录成功")
+                    console.log(assertion)
+
+                    alert("获取信息成功!!!!!!")
+                }
+            },
+
+            // 授权登录
+            authLogin:async function () {
+                const hasTouchID = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+                if (hasTouchID) {
+                    this.message+='检测支持! 开启指纹注册<br/><br/>'
+                    try {
+                        await this.touchIDRegistered();
+                    } finally {
+                        await this.touchIDLogin();
+                    }
+                }
+            }
+        },
+        created:function () {
+            this.authLogin()
+        }
+    })
+
+</script>
+</html>
