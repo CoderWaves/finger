@@ -149,13 +149,12 @@
                     // 开始校验指纹
                     console.log("开始校验指纹")
                     this.message+='开始校验指纹<br/><br/>';
-                    const assertion = await navigator.credentials.get(this.touchIDLoginOptions);
-
-                    this.message+='登录成功<br/><br/>';
-                    console.log("登录成功")
-                    console.log(assertion)
-
-                    alert("获取信息成功!!!!!!")
+                    try{
+                       const assertion = await navigator.credentials.get(this.touchIDLoginOptions);
+                   }catch (err){
+                       console.log(err)
+                       this.message+='出现异常：'+err+'<br/><br/>';
+                   }
                 }
             },
 
